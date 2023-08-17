@@ -6,7 +6,14 @@ struct Color(u8, u8, u8);
 
 fn main() {
     let the_grid = TetrisGrid { grid: [None; 200] };
-    draw_blocks(&the_grid.grid);
+    let test = Piece::S;
+    let mut grid = test.new();
+    
+    for i in 0..5 {
+        draw_piece_test(&grid);
+        rotate_right(&mut grid);
+    }
+    // draw_blocks(&the_grid.grid);
 }
 
 enum Piece {
@@ -20,8 +27,8 @@ enum Piece {
 }
 
 impl Piece {
-    pub fn new (&self) -> (Color, [Option<Color>; 9]) {
-        (self.color(), self.generate_piece())
+    pub fn new (&self) -> ([Option<Color>; 9]) {
+        (self.generate_piece())
     }
 
     fn color(&self) -> Color {
@@ -65,23 +72,22 @@ impl Piece {
     }
 }
 
-fn rotate_right(p: Piece, area: &mut [Option<Color>; 9]) {
-    if !matches!(Piece::O, p) {
-        let mut new_area: [Option<Color>; 9] = [None; 9]; //think array of 3 by 3
-        for x in 0..3 {
-            new_area[x * 3 + 2] = area[x]; // rotates top 3 to right 3
-        }
-        for y in 0..3 {
-            new_area[8 - y] = area[y * 3 + 2]; //rotates right 3 to bottom 3
-        }
-        for x in 0..3 {
-            new_area[x * 3] = area[6 + x]; //rotates bottom 3 to left 3
-        }
-        for y in 0..3 {
-            new_area[2 - y] = area[y * 3]; //rotates left 3 to top 3
-        }
-        *area = new_area;
+fn rotate_right(area: &mut [Option<Color>; 9]) {
+    let mut new_area: [Option<Color>; 9] = [None; 9]; //think array of 3 by 3 quandrant 4
+    for x in 0..3 {
+        new_area[x * 3 + 2] = area[x]; // sets right 3 to top 3
     }
+    for y in 0..3 {
+        new_area[8 - y] = area[y * 3 + 2]; // sets bottom 3 to right 3
+    }
+    for x in 0..3 {
+        new_area[x * 3] = area[6 + x]; // sets left 3 to bottom 3
+    }
+    for y in 0..3 {
+        new_area[2 - y] = area[y * 3]; // sets top 3 right 3
+    }
+    new_area[4] = area[4]; // sets middle to middle
+    *area = new_area;
 }
 
 
@@ -137,5 +143,14 @@ fn draw_block(color: Option<Color>, x: usize, y: usize) {
     match color {
         Some(_) => print!("X"),
         None => print!("O"),
+    }
+}
+
+fn draw_piece_test(grid: &[Option<Color>; 9]) {
+    for y in 0..3 {
+        for x in 0..3 {
+            draw_block(grid[y*3 + x], x, y);
+        }
+        println!();
     }
 }
