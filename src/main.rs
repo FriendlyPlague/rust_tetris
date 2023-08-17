@@ -6,17 +6,64 @@ struct Color(u8, u8, u8);
 
 fn main() {
     let the_grid = TetrisGrid { grid: [None; 200] };
-    let test = Piece::S;
-    let mut grid = test.new();
+    let mut grid = Piece::new(PieceType::S);
     
     for i in 0..5 {
-        draw_piece_test(&grid);
-        rotate_right(&mut grid);
+        draw_piece_test(&grid.0);
+        grid.rotate_right();
     }
     // draw_blocks(&the_grid.grid);
 }
 
-enum Piece {
+struct Piece([Option<Color>; 9]);
+impl Piece {
+    #[rustfmt::skip]
+    pub fn new (piece_type: PieceType) -> Piece {
+        let c = piece_type.color();
+        match piece_type {
+            PieceType::I => Piece([None, Some(c), None,
+                        None, Some(c), None,
+                        None, Some(c), None]),
+            PieceType::O => Piece([Some(c),Some(c),None,
+                        Some(c),Some(c),None,
+                        None, None, None]),
+            PieceType::S => Piece([None,  Some(c),Some(c),
+                        Some(c), Some(c), None,
+                        None,None,None]),
+            PieceType::Z => Piece([Some(c),Some(c), None,
+                        None, Some(c), Some(c),
+                        None, None, None]),
+            PieceType::L => Piece([Some(c),None,None,
+                        Some(c), None, None,
+                        Some(c),Some(c),None]),
+            PieceType::J => Piece([None, None,Some(c),
+                        None, None, Some(c),
+                        None,Some(c),Some(c)]),
+            PieceType::T => Piece([Some(c),Some(c),Some(c),
+                        None, Some(c), None,
+                        None, None, None]),
+        }
+    }
+    fn rotate_right(&mut self) {
+        let mut new_area: [Option<Color>; 9] = [None; 9]; //think array of 3 by 3 quandrant 4
+        for x in 0..3 {
+            new_area[x * 3 + 2] = self.0[x]; // sets right 3 to top 3
+        }
+        for y in 0..3 {
+            new_area[8 - y] = self.0[y * 3 + 2]; // sets bottom 3 to right 3
+        }
+        for x in 0..3 {
+            new_area[x * 3] = self.0[6 + x]; // sets left 3 to bottom 3
+        }
+        for y in 0..3 {
+            new_area[2 - y] = self.0[y * 3]; // sets top 3 right 3
+        }
+        new_area[4] = self.0[4]; // sets middle to middle
+        self.0 = new_area;
+    }
+    
+}
+enum PieceType {
     O,
     I,
     S,
@@ -25,70 +72,21 @@ enum Piece {
     J,
     T,
 }
-
-impl Piece {
-    pub fn new (&self) -> ([Option<Color>; 9]) {
-        (self.generate_piece())
-    }
-
+impl PieceType {
     fn color(&self) -> Color {
         match *self {
-            Piece::O => Color(208, 245, 22),
-            Piece::I => Color(9, 180, 214),
-            Piece::S => Color(232, 12, 15),
-            Piece::Z => Color(5, 153, 24),
-            Piece::L => Color(245, 178, 22),
-            Piece::J => Color(240, 31, 205),
-            Piece::T => Color(113, 6, 158),
-        }
-    }
-
-    #[rustfmt::skip]
-    fn generate_piece(&self) -> [Option<Color>; 9] {
-        let c = self.color();
-        match self {
-            Piece::I => [None, Some(c), None,
-                        None, Some(c), None,
-                        None, Some(c), None],
-            Piece::O => [Some(c),Some(c),None,
-                        Some(c),Some(c),None,
-                        None, None, None],
-            Piece::S => [None,  Some(c),Some(c),
-                        Some(c), Some(c), None,
-                        None,None,None],
-            Piece::Z =>[Some(c),Some(c), None,
-                        None, Some(c), Some(c),
-                        None, None, None],
-            Piece::L => [Some(c),None,None,
-                        Some(c), None, None,
-                        Some(c),Some(c),None],
-            Piece::J => [None, None,Some(c),
-                        None, None, Some(c),
-                        None,Some(c),Some(c)],
-            Piece::T => [Some(c),Some(c),Some(c),
-                        None, Some(c), None,
-                        None, None, None],
+            PieceType::O => Color(208, 245, 22),
+            PieceType::I => Color(9, 180, 214),
+            PieceType::S => Color(232, 12, 15),
+            PieceType::Z => Color(5, 153, 24),
+            PieceType::L => Color(245, 178, 22),
+            PieceType::J => Color(240, 31, 205),
+            PieceType::T => Color(113, 6, 158),
         }
     }
 }
 
-fn rotate_right(area: &mut [Option<Color>; 9]) {
-    let mut new_area: [Option<Color>; 9] = [None; 9]; //think array of 3 by 3 quandrant 4
-    for x in 0..3 {
-        new_area[x * 3 + 2] = area[x]; // sets right 3 to top 3
-    }
-    for y in 0..3 {
-        new_area[8 - y] = area[y * 3 + 2]; // sets bottom 3 to right 3
-    }
-    for x in 0..3 {
-        new_area[x * 3] = area[6 + x]; // sets left 3 to bottom 3
-    }
-    for y in 0..3 {
-        new_area[2 - y] = area[y * 3]; // sets top 3 right 3
-    }
-    new_area[4] = area[4]; // sets middle to middle
-    *area = new_area;
-}
+
 
 
 
