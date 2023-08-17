@@ -3,14 +3,5 @@
 version = 3
 
 [[package]]
-name = "set_slice"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cacefe7ebbac3144cf6398e5e962295862ffd889244f382c1706c4d7bec99b9"
-
-[[package]]
 name = "tetris"
 version = "0.1.0"
-dependencies = [
- "set_slice",
-]
