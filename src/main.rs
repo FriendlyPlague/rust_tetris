@@ -3,13 +3,14 @@ use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::
 
 const GAME_WIDTH: usize = 10;
 const GAME_HEIGHT: usize = 20;
-const SPEED: f64 = 0.1;
+const FALL_SPEED: f64 = 0.2; // smaller number faster
+const FRAME_TIME: f64 = 1.0 / 60.0;
 const X_OFFSET: f32 = 100.0;
 const Y_OFFSET: f32 = 20.0;
 
 fn window_conf() -> window::Conf {
     window::Conf {
-        window_title: "Snake".to_owned(),
+        window_title: "Tetris".to_owned(),
         window_width: 700,
         window_height: 1000,
         window_resizable: false,
@@ -41,28 +42,34 @@ async fn main() {
             loop {
                 // input
                 match input::get_last_key_pressed() {
-                    Some(KeyCode::Left) => (),
+                    Some(KeyCode::Left) => current_piece.x -= 1.0,
+                    Some(KeyCode::Right) => current_piece.x += 1.0,
+                    Some(KeyCode::Down) => current_piece.y += 1.0,
+                    Some(KeyCode::R) => current_piece.rotate_right(),
                     Some(KeyCode::Escape) => break,
                     _ => (),
                 }
-                if get_time() - last_time > SPEED {
+                let delta_time = get_time() - last_time;
+                if delta_time > FALL_SPEED {
                     last_time = get_time();
+                    current_piece.y += 1.0;
+                    if current_piece.y as usize > GAME_HEIGHT {
+                        current_piece = Piece::new(PieceType::rand());
+                    }
                 }
                 // render stuff
                 window::clear_background(color::DARKGRAY);
+                current_piece.draw(scale);
                 tetris_grid.draw(scale);      
                 window::next_frame().await;
-                thread::sleep(Duration::from_millis(15));;
+                thread::sleep(Duration::from_millis(15));
             }
         },
         MainState::GameOver => (),
         MainState::ExitGame => (),
     }
 }
-struct Position {
-    x: i32,
-    y: i32,
-}
+
 struct Piece {
     grid:[Option<color::Color>; 9],
     p_type: PieceType,
@@ -92,8 +99,8 @@ impl Piece {
                                 None, None, Some(c),
                                 None,Some(c),Some(c)],
                 PieceType::T => [Some(c),Some(c),Some(c),
-                            None, Some(c), None,
-                            None, None, None],
+                                None, Some(c), None,
+                                None, None, None],
         };
         Piece {
             grid: grid, 
@@ -119,10 +126,22 @@ impl Piece {
             new_area[2 - y] = self.grid[y * 3]; // sets top 3 right 3
         }
         new_area[4] = self.grid[4]; // sets middle to middle
+        if self.p_type != PieceType::I && new_area[0..3] == [None, None, None] {
+            new_area.rotate_left(3);
+        }
         self.grid = new_area;
     }
-    
+    fn draw(&self, scale: f32) {
+        for grid_y in 0..3 {
+            for grid_x in 0..3 {
+                if let Some(c) = self.grid[3*grid_y + grid_x] {
+                    draw_block(c, self.x + grid_x as f32, self.y + grid_y as f32, scale)
+                }
+            }
+        }
+    }
 }
+#[derive(Debug, PartialEq)]
 enum PieceType {
     O,
     I,
@@ -135,13 +154,13 @@ enum PieceType {
 impl PieceType {
     fn get_color(&self) -> color::Color {
         match *self {
-            PieceType::O => color::Color::from_rgba(208, 245, 22, 1),
-            PieceType::I => color::Color::from_rgba(9, 180, 214,1),
-            PieceType::S => color::Color::from_rgba(232, 12, 15, 1),
-            PieceType::Z => color::Color::from_rgba(5, 153, 24,1),
-            PieceType::L => color::Color::from_rgba(245, 178, 22,1),
-            PieceType::J => color::Color::from_rgba(240, 31, 205,1),
-            PieceType::T => color::Color::from_rgba(113, 6, 158,1),
+            PieceType::O => color::Color::from_rgba(208, 245, 22, 255),
+            PieceType::I => color::Color::from_rgba(9, 180, 214,255),
+            PieceType::S => color::Color::from_rgba(232, 12, 15, 255),
+            PieceType::Z => color::Color::from_rgba(5, 153, 24,255),
+            PieceType::L => color::Color::from_rgba(245, 178, 22,255),
+            PieceType::J => color::Color::from_rgba(240, 31, 205,255),
+            PieceType::T => color::Color::from_rgba(113, 6, 158,255),
         }
     }
     fn rand() -> PieceType {
@@ -207,15 +226,15 @@ impl TetrisGrid {
     fn draw(&self, scale: f32) {
         for y in 0..GAME_HEIGHT {
             for x in 0..GAME_WIDTH {
-                draw_block(self.grid[x * y], x as f32, y as f32, scale);
+                if let Some(c) = self.grid[GAME_WIDTH * y + x] {
+                    draw_block(c, x as f32, y as f32, scale);
+                }
             }
         }
     }
 }
 
-fn draw_block(block_color: Option<color::Color>, x: f32, y: f32, scale: f32) {
-    match block_color {
-        Some(c) => shapes::draw_rectangle(x * scale + X_OFFSET, y * scale + Y_OFFSET, scale, scale, c),
-        None => shapes::draw_rectangle_lines(x * scale + X_OFFSET, y * scale + Y_OFFSET, scale, scale, 2.0, color::BLACK),
-    }
+fn draw_block(block_color: color::Color, x: f32, y: f32, scale: f32) {
+    shapes::draw_rectangle(x * scale + X_OFFSET, y * scale + Y_OFFSET, scale, scale, block_color);
+    shapes::draw_rectangle_lines(x * scale + X_OFFSET, y * scale + Y_OFFSET, scale, scale, 2.0, color::BLACK);
 }
