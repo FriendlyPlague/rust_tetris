@@ -1,5 +1,5 @@
 use std::{thread,time::Duration};
-use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::KeyCode, miniquad::date, telemetry::frame};
+use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::KeyCode, miniquad::date};
 
 const GAME_WIDTH: usize = 10;
 const GAME_HEIGHT: usize = 20;
@@ -18,13 +18,13 @@ fn window_conf() -> window::Conf {
 }
 enum MainState {
     StartMenu,
-    SnakeLoop,
+    TetrisLoop,
     GameOver,
     ExitGame,
 }
 #[macroquad::main(window_conf)]
 async fn main() {
-    let main_state = MainState::SnakeLoop;
+    let main_state = MainState::TetrisLoop;
     let scale: f32 = {
         let x_scale: f32 = window::screen_width()/GAME_WIDTH as f32 - X_OFFSET*2.0/GAME_WIDTH as f32;
         let y_scale: f32 = window::screen_height()/GAME_HEIGHT as f32 - Y_OFFSET*2.0/GAME_HEIGHT as f32;
@@ -35,8 +35,8 @@ async fn main() {
     rand::srand(date::now() as u64);
     match main_state {
         MainState::StartMenu => (),
-        MainState::SnakeLoop => {
-            let current_piece = Piece::new(PieceType::rand());
+        MainState::TetrisLoop => {
+            let mut current_piece = Piece::new(PieceType::rand());
             let mut last_time = get_time();
             loop {
                 // input
@@ -50,7 +50,7 @@ async fn main() {
                 }
                 // render stuff
                 window::clear_background(color::DARKGRAY);
-                draw_blocks(&tetris_grid.grid, scale);      
+                tetris_grid.draw(scale);      
                 window::next_frame().await;
                 thread::sleep(Duration::from_millis(15));;
             }
@@ -59,54 +59,67 @@ async fn main() {
         MainState::ExitGame => (),
     }
 }
-
-struct Piece([Option<color::Color>; 9], PieceType);
+struct Position {
+    x: i32,
+    y: i32,
+}
+struct Piece {
+    grid:[Option<color::Color>; 9],
+    p_type: PieceType,
+    x: f32,
+    y: f32,
+}
 impl Piece {
     fn new (piece_type: PieceType) -> Piece {
         let c = piece_type.get_color();
-        match piece_type {
-            PieceType::I => Piece([None, Some(c), None,
-                        None, Some(c), None,
-                        None, Some(c), None], PieceType::I),
-            PieceType::O => Piece([Some(c),Some(c),None,
-                        Some(c),Some(c),None,
-                        None, None, None], PieceType::O),
-            PieceType::S => Piece([None,  Some(c),Some(c),
-                        Some(c), Some(c), None,
-                        None,None,None], PieceType::S),
-            PieceType::Z => Piece([Some(c),Some(c), None,
-                        None, Some(c), Some(c),
-                        None, None, None], PieceType::Z),
-            PieceType::L => Piece([Some(c),None,None,
-                        Some(c), None, None,
-                        Some(c),Some(c),None], PieceType::L),
-            PieceType::J => Piece([None, None,Some(c),
-                        None, None, Some(c),
-                        None,Some(c),Some(c)], PieceType::J),
-            PieceType::T => Piece([Some(c),Some(c),Some(c),
-                        None, Some(c), None,
-                        None, None, None], PieceType::T),
+        let grid = match piece_type {
+                PieceType::I => [None, Some(c), None,
+                                None, Some(c), None,
+                                None, Some(c), None],
+                PieceType::O => [Some(c),Some(c),None,
+                                Some(c),Some(c),None,
+                                None, None, None],
+                PieceType::S => [None,  Some(c),Some(c),
+                                Some(c), Some(c), None,
+                                None,None,None],
+                PieceType::Z => [Some(c),Some(c), None,
+                                None, Some(c), Some(c),
+                                None, None, None],
+                PieceType::L => [Some(c),None,None,
+                                Some(c), None, None,
+                                Some(c),Some(c),None],
+                PieceType::J => [None, None,Some(c),
+                                None, None, Some(c),
+                                None,Some(c),Some(c)],
+                PieceType::T => [Some(c),Some(c),Some(c),
+                            None, Some(c), None,
+                            None, None, None],
+        };
+        Piece {
+            grid: grid, 
+            p_type: piece_type, 
+            x: 2.0, y: 0.0,
         }
     }
     fn rotate_right(&mut self) {
-        if let PieceType::O = self.1 {
+        if let PieceType::O = self.p_type {
             return;
         }
         let mut new_area: [Option<color::Color>; 9] = [None; 9]; //think array of 3 by 3 quandrant 4
         for x in 0..3 {
-            new_area[x * 3 + 2] = self.0[x]; // sets right 3 to top 3
+            new_area[x * 3 + 2] = self.grid[x]; // sets right 3 to top 3
         }
         for y in 0..3 {
-            new_area[8 - y] = self.0[y * 3 + 2]; // sets bottom 3 to right 3
+            new_area[8 - y] = self.grid[y * 3 + 2]; // sets bottom 3 to right 3
         }
         for x in 0..3 {
-            new_area[x * 3] = self.0[6 + x]; // sets left 3 to bottom 3
+            new_area[x * 3] = self.grid[6 + x]; // sets left 3 to bottom 3
         }
         for y in 0..3 {
-            new_area[2 - y] = self.0[y * 3]; // sets top 3 right 3
+            new_area[2 - y] = self.grid[y * 3]; // sets top 3 right 3
         }
-        new_area[4] = self.0[4]; // sets middle to middle
-        self.0 = new_area;
+        new_area[4] = self.grid[4]; // sets middle to middle
+        self.grid = new_area;
     }
     
 }
@@ -151,16 +164,24 @@ struct TetrisGrid {
 }
 
 impl TetrisGrid {
-    fn delete_rows(&mut self, start_r: usize, end_r: usize) {
-        /* Clears rows then shifts everything above cleared rows down*/
-        for i in GAME_WIDTH * start_r..GAME_WIDTH * end_r {
-            self.grid[i] = None;
+    fn delete_rows(&mut self) {
+        let mut to_be_deleted = self.check_lines();
+        while to_be_deleted.is_some() {
+            /* Clears rows then shifts everything above cleared rows down*/
+            if let Some((num_r, start_r)) = to_be_deleted {
+                let end_r = start_r + num_r;
+                for i in GAME_WIDTH*start_r..GAME_WIDTH*end_r {
+                    self.grid[i] = None;
+                }
+                // moves everything down
+                self.grid[0..GAME_WIDTH*end_r].rotate_right(GAME_WIDTH* (end_r - start_r));
+            }
+            to_be_deleted = self.check_lines();
         }
-        self.grid[0..GAME_WIDTH * end_r].rotate_right(GAME_WIDTH * (end_r - start_r));
     }
 
     fn check_lines(&self) -> Option<(usize, usize)> {
-        /* if there is a row to be deleted, it returns  the ammount
+        /* if there is a row to be deleted, it returns  the amount
         of rows detected and the starting row location*/
         let mut tetris_count = 0;
         for y in 0..GAME_HEIGHT {
@@ -183,11 +204,11 @@ impl TetrisGrid {
             None
         }
     }
-}
-fn draw_blocks(grid: &[Option<color::Color>; GAME_WIDTH * GAME_HEIGHT], scale: f32) {
-    for y in 0..GAME_HEIGHT {
-        for x in 0..GAME_WIDTH {
-            draw_block(grid[x * y], x as f32, y as f32, scale);
+    fn draw(&self, scale: f32) {
+        for y in 0..GAME_HEIGHT {
+            for x in 0..GAME_WIDTH {
+                draw_block(self.grid[x * y], x as f32, y as f32, scale);
+            }
         }
     }
 }
