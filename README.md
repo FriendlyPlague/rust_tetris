@@ -1,3 +1,3 @@
 # rust_tetris
 A tetris prototype written in rust
-[[!tetris.gif]]
+![](https://github.com/ZacharyGillmore/rust_tetris/blob/master/tetris.gif)
