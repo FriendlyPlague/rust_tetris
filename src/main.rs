@@ -5,7 +5,8 @@ use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::
 
 const GAME_WIDTH: usize = 10;
 const GAME_HEIGHT: usize = 20;
-const FALL_SPEED: f64 = 0.2; // smaller number faster
+const FALL_SPEED: f64 = 0.18; // smaller number faster
+const MOVE_SPEED: f64 = 0.06;
 const FRAME_TIME: f64 = 1.0 / 60.0;
 const X_OFFSET: f32 = 100.0;
 const Y_OFFSET: f32 = 20.0;
@@ -42,21 +43,10 @@ async fn main() {
             MainState::TetrisLoop => {
                 let mut current_piece = TetrisPiece::new(PieceType::rand());
                 let mut last_time = get_time();
+                let mut last_input_time = get_time();
                 loop {
                     // input
                     match input::get_last_key_pressed() {
-                        Some(KeyCode::Left) => {
-                            current_piece.x -= 1; 
-                            if detect_collision(&current_piece, &tetris_grid) {
-                                current_piece.x += 1;
-                            }
-                        },
-                        Some(KeyCode::Right) => {
-                            current_piece.x += 1; 
-                            if detect_collision(&current_piece, &tetris_grid) {
-                                current_piece.x -= 1;
-                            }
-                        },
                         Some(KeyCode::Space) => {
                             current_piece.drop_down(&tetris_grid);
                         }
@@ -81,9 +71,32 @@ async fn main() {
                         },
                         _ => (),
                     }
+                    let delta_time = get_time() - last_input_time;
+                    if delta_time > MOVE_SPEED {
+                        if input::is_key_down(KeyCode::Right) {
+                            current_piece.x += 1;
+                            if detect_collision(&current_piece, &tetris_grid) {
+                                current_piece.x -= 1;
+                            }
+                        }
+                        else if input::is_key_down(KeyCode::Left) {
+                            current_piece.x -= 1;
+                            if detect_collision(&current_piece, &tetris_grid) {
+                                current_piece.x += 1;
+                            }
+                        }
+                        if input::is_key_down(KeyCode::Down) {
+                            current_piece.y += 1;
+                            if detect_collision(&current_piece, &tetris_grid) {
+                                current_piece.y -= 1;
+                            }
+                        }
+                        last_input_time = get_time();
+                    }
                     let delta_time = get_time() - last_time;
                     if delta_time > FALL_SPEED {
                         last_time = get_time();
+                        
                         current_piece.y += 1;
                         if detect_collision(&current_piece, &tetris_grid) {
                             current_piece.y -= 1;
