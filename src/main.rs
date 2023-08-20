@@ -1,3 +1,4 @@
+use core::num;
 use std::{thread,time::Duration};
 use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::{KeyCode, clamp}, miniquad::date};
 
@@ -9,7 +10,8 @@ const FALL_SPEED: f64 = 0.18; // smaller number faster
 const MOVE_SPEED: f64 = 0.06;
 const FRAME_TIME: f64 = 1.0 / 60.0;
 const X_OFFSET: f32 = 100.0;
-const Y_OFFSET: f32 = 20.0;
+const TOP_MARGIN: f32 = 80.0;
+const BOTTOM_MARGIN: f32 = 20.0;
 
 fn window_conf() -> window::Conf {
     window::Conf {
@@ -31,11 +33,11 @@ async fn main() {
     let mut main_state = MainState::TetrisLoop;
     let scale: f32 = {
         let x_scale: f32 = window::screen_width()/GAME_WIDTH as f32 - X_OFFSET*2.0/GAME_WIDTH as f32;
-        let y_scale: f32 = window::screen_height()/GAME_HEIGHT as f32 - Y_OFFSET*2.0/GAME_HEIGHT as f32;
+        let y_scale: f32 = window::screen_height()/GAME_HEIGHT as f32 - (TOP_MARGIN+BOTTOM_MARGIN)/GAME_HEIGHT as f32;
         if x_scale < y_scale {x_scale}
         else {y_scale}
     };
-    let mut tetris_grid: TetrisGrid = TetrisGrid{grid: [None; GAME_WIDTH * GAME_HEIGHT]};
+    let mut score: i32 = 0;
     rand::srand(date::now() as u64);
     loop {
         match main_state {
@@ -44,13 +46,14 @@ async fn main() {
                 let mut current_piece = TetrisPiece::new(PieceType::rand());
                 let mut last_time = get_time();
                 let mut last_input_time = get_time();
+                let mut tetris_grid: TetrisGrid = TetrisGrid{grid: [None; GAME_WIDTH * GAME_HEIGHT]};
                 loop {
                     // input
                     match input::get_last_key_pressed() {
                         Some(KeyCode::Space) => {
                             current_piece.drop_down(&tetris_grid);
                         }
-                        Some(KeyCode::R) => {
+                        Some(KeyCode::R) | Some(KeyCode::Up) => {
                             // purpose of clone is to prevent roatation into other pieces
                             let mut piece_clone = current_piece.clone();
                             piece_clone.rotate_right();
@@ -109,13 +112,17 @@ async fn main() {
                                 current_piece = TetrisPiece::new(PieceType::rand());
                             }
                         }
-                        tetris_grid.delete_rows();
+                        if let Some(new_score) = tetris_grid.delete_rows() {
+                            score += new_score;
+                        }
                     }
                     // render stuff
                     window::clear_background(color::DARKGRAY);
+                    let score: String = score.to_string();
+                    text::draw_text(&score, window::screen_width()/2.0 - (score.len()*50) as f32, TOP_MARGIN, 100.0, color::BLACK);
                     current_piece.draw(scale);
                     tetris_grid.draw(scale);  
-                    shapes::draw_rectangle_lines(X_OFFSET, Y_OFFSET, GAME_WIDTH as f32 *scale, GAME_HEIGHT as f32 *scale, 2.0, color::BLACK);    
+                    shapes::draw_rectangle_lines(X_OFFSET, TOP_MARGIN, GAME_WIDTH as f32 *scale, GAME_HEIGHT as f32 *scale, 2.0, color::BLACK);    
                     window::next_frame().await;
                     thread::sleep(Duration::from_millis(15));
                 }
@@ -250,8 +257,16 @@ struct TetrisGrid {
 }
 
 impl TetrisGrid {
-    fn delete_rows(&mut self) {
+    fn delete_rows(&mut self) -> Option<i32> {
         let mut to_be_deleted = self.check_lines();
+        let mut out_score = None;
+        match to_be_deleted {
+            Some((1, _)) => out_score = Some(40),
+            Some((2, _)) => out_score = Some(100),
+            Some((3, _)) => out_score = Some(300),
+            Some((4, _)) => out_score = Some(1200),
+            _ => (),
+        }
         while to_be_deleted.is_some() {
             /* Clears rows then shifts everything above cleared rows down*/
             if let Some((num_r, start_r)) = to_be_deleted {
@@ -264,6 +279,7 @@ impl TetrisGrid {
             }
             to_be_deleted = self.check_lines();
         }
+        out_score
     }
     
     fn check_lines(&self) -> Option<(usize, usize)> {
@@ -312,8 +328,8 @@ impl TetrisGrid {
 }
 
 fn draw_block(block_color: color::Color, x: f32, y: f32, scale: f32) {
-    shapes::draw_rectangle(x * scale + X_OFFSET, y * scale + Y_OFFSET, scale, scale, block_color);
-    shapes::draw_rectangle_lines(x * scale + X_OFFSET, y * scale + Y_OFFSET, scale, scale, 2.0, color::BLACK);
+    shapes::draw_rectangle(x * scale + X_OFFSET, y * scale + TOP_MARGIN, scale, scale, block_color);
+    shapes::draw_rectangle_lines(x * scale + X_OFFSET, y * scale + TOP_MARGIN, scale, scale, 2.0, color::BLACK);
 }
 
 fn detect_collision(piece: &TetrisPiece, t_grid: &TetrisGrid) -> bool {
