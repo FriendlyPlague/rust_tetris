@@ -27,7 +27,7 @@ enum MainState {
 }
 #[macroquad::main(window_conf)]
 async fn main() {
-    let main_state = MainState::TetrisLoop;
+    let mut main_state = MainState::TetrisLoop;
     let scale: f32 = {
         let x_scale: f32 = window::screen_width()/GAME_WIDTH as f32 - X_OFFSET*2.0/GAME_WIDTH as f32;
         let y_scale: f32 = window::screen_height()/GAME_HEIGHT as f32 - Y_OFFSET*2.0/GAME_HEIGHT as f32;
@@ -36,66 +36,80 @@ async fn main() {
     };
     let mut tetris_grid: TetrisGrid = TetrisGrid{grid: [None; GAME_WIDTH * GAME_HEIGHT]};
     rand::srand(date::now() as u64);
-    match main_state {
-        MainState::StartMenu => (),
-        MainState::TetrisLoop => {
-            let mut current_piece = TetrisPiece::new(PieceType::rand());
-            let mut last_time = get_time();
-            loop {
-                // input
-                match input::get_last_key_pressed() {
-                    Some(KeyCode::Left) => {
-                        current_piece.x -= 1; 
-                        if detect_collision(&current_piece, &tetris_grid) {
-                            current_piece.x += 1;
+    loop {
+        match main_state {
+            MainState::StartMenu => (),
+            MainState::TetrisLoop => {
+                let mut current_piece = TetrisPiece::new(PieceType::rand());
+                let mut last_time = get_time();
+                loop {
+                    // input
+                    match input::get_last_key_pressed() {
+                        Some(KeyCode::Left) => {
+                            current_piece.x -= 1; 
+                            if detect_collision(&current_piece, &tetris_grid) {
+                                current_piece.x += 1;
+                            }
+                        },
+                        Some(KeyCode::Right) => {
+                            current_piece.x += 1; 
+                            if detect_collision(&current_piece, &tetris_grid) {
+                                current_piece.x -= 1;
+                            }
+                        },
+                        Some(KeyCode::Space) => {
+                            current_piece.drop_down(&tetris_grid);
                         }
-                    },
-                    Some(KeyCode::Right) => {
-                        current_piece.x += 1; 
-                        if detect_collision(&current_piece, &tetris_grid) {
-                            current_piece.x -= 1;
-                        }
-                    },
-                    Some(KeyCode::Space) => {
-                        current_piece.drop_down(&tetris_grid);
+                        Some(KeyCode::R) => {
+                            // purpose of clone is to prevent roatation into other pieces
+                            let mut piece_clone = current_piece.clone();
+                            piece_clone.rotate_right();
+                            if detect_collision(&piece_clone, &tetris_grid) {
+                                piece_clone.x = clamp(piece_clone.x, 0, 6);
+                                if !detect_collision(&piece_clone, &tetris_grid) {
+                                    current_piece = piece_clone;
+                                }
+                                else {
+                                    println!("can't rotate into other blocks!");
+                                }
+                            }
+                            else {current_piece.rotate_right();}
+                        },
+                        Some(KeyCode::Escape) => {
+                            main_state = MainState::ExitGame; 
+                            break;
+                        },
+                        _ => (),
                     }
-                    Some(KeyCode::R) => {
-                        // purpose of clone is to prevent roatation into other pieces
-                        let mut piece_clone = current_piece.clone();
-                        piece_clone.rotate_right();
-                        if detect_collision(&piece_clone, &tetris_grid) {
-                            piece_clone.x = clamp(piece_clone.x, 0, 6);
-                            if !detect_collision(&piece_clone, &tetris_grid) {
-                                current_piece = piece_clone;
+                    let delta_time = get_time() - last_time;
+                    if delta_time > FALL_SPEED {
+                        last_time = get_time();
+                        current_piece.y += 1;
+                        if detect_collision(&current_piece, &tetris_grid) {
+                            current_piece.y -= 1;
+                            if detect_fail(&current_piece) {
+                                main_state = MainState::ExitGame;
+                                break;
+                            }
+                            else {
+                                tetris_grid.add_piece(&current_piece);
+                                current_piece = TetrisPiece::new(PieceType::rand());
                             }
                         }
-                        else {current_piece.rotate_right();}
-                    },
-                    Some(KeyCode::Escape) => break,
-                    _ => (),
-                }
-                let delta_time = get_time() - last_time;
-                if delta_time > FALL_SPEED {
-                    last_time = get_time();
-                    current_piece.y += 1;
-                    if detect_collision(&current_piece, &tetris_grid) {
-                        current_piece.y -= 1;
-                        tetris_grid.add_piece(&current_piece);
-                        current_piece = TetrisPiece::new(PieceType::rand());
+                        tetris_grid.delete_rows();
                     }
-                    tetris_grid.delete_rows();
+                    // render stuff
+                    window::clear_background(color::DARKGRAY);
+                    current_piece.draw(scale);
+                    tetris_grid.draw(scale);  
+                    shapes::draw_rectangle_lines(X_OFFSET, Y_OFFSET, GAME_WIDTH as f32 *scale, GAME_HEIGHT as f32 *scale, 2.0, color::BLACK);    
+                    window::next_frame().await;
+                    thread::sleep(Duration::from_millis(15));
                 }
-                // render stuff
-                window::clear_background(color::DARKGRAY);
-                current_piece.draw(scale);
-                tetris_grid.draw(scale);  
-                shapes::draw_rectangle_lines(X_OFFSET, Y_OFFSET, GAME_WIDTH as f32 *scale, GAME_HEIGHT as f32 *scale, 2.0, color::BLACK);    
-                window::next_frame().await;
-                thread::sleep(Duration::from_millis(15));
-            }
-        },
-        MainState::GameOver => (),
-        MainState::ExitGame => (),
+            },
+            MainState::GameOver => (),
+            MainState::ExitGame => break,
+        }
     }
 }
 
@@ -135,7 +149,7 @@ impl TetrisPiece {
         TetrisPiece {
             grid: grid, 
             p_type: piece_type, 
-            x: 2, y: 0,
+            x: 3, y: -2,
         }
     }
     fn rotate_right(&mut self) {
@@ -168,10 +182,14 @@ impl TetrisPiece {
         self.y -= 1;
     }
     fn draw(&self, scale: f32) {
-        for grid_y in 0..3 {
-            for grid_x in 0..3 {
-                if let Some(c) = self.grid[3*grid_y as usize + grid_x as usize] {
-                    draw_block(c, (self.x + grid_x) as f32, (self.y + grid_y) as f32, scale)
+        for py in 0..3 {
+            for px in 0..3 {
+                let (x,y) = (px + self.x, py + self.y);
+                if y < 0 {
+                    continue;
+                }
+                if let Some(c) = self.grid[(3*py + px) as usize] {
+                    draw_block(c, x as f32, y as f32, scale);
                 }
             }
         }
@@ -286,10 +304,24 @@ fn draw_block(block_color: color::Color, x: f32, y: f32, scale: f32) {
 }
 
 fn detect_collision(piece: &TetrisPiece, t_grid: &TetrisGrid) -> bool {
+    // NOTE: for loops are often repeated, could turn into higher order function
     for py in 0..3 {
         for px in 0..3 {
             let (x,y) = (px + piece.x, py + piece.y);
+            if y < 0 {continue;}
             if piece.grid[py as usize*3 + px as usize].is_some() && (x < 0 || x > 9 || y > 19 || t_grid.grid[GAME_WIDTH * y as usize + x as usize].is_some()) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn detect_fail(piece: &TetrisPiece) -> bool {
+    for py in 0..3 {
+        for px in 0..3 {
+            let (x,y) = (px + piece.x, py + piece.y);
+            if piece.grid[py as usize*3 + px as usize].is_some() && y < 0  {
                 return true;
             }
         }
