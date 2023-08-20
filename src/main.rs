@@ -1,9 +1,9 @@
 use std::{thread,time::Duration};
-use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::KeyCode, miniquad::date};
+use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::{KeyCode, clamp}, miniquad::date};
 
 const GAME_WIDTH: usize = 10;
 const GAME_HEIGHT: usize = 20;
-const FALL_SPEED: f64 = 0.2; // smaller number faster
+const FALL_SPEED: f64 = 0.15; // smaller number faster
 const FRAME_TIME: f64 = 1.0 / 60.0;
 const X_OFFSET: f32 = 100.0;
 const Y_OFFSET: f32 = 20.0;
@@ -32,35 +32,60 @@ async fn main() {
         if x_scale < y_scale {x_scale}
         else {y_scale}
     };
-    let tetris_grid: TetrisGrid = TetrisGrid{grid: [None; GAME_WIDTH * GAME_HEIGHT]};
+    let mut tetris_grid: TetrisGrid = TetrisGrid{grid: [None; GAME_WIDTH * GAME_HEIGHT]};
     rand::srand(date::now() as u64);
     match main_state {
         MainState::StartMenu => (),
         MainState::TetrisLoop => {
-            let mut current_piece = Piece::new(PieceType::rand());
+            let mut current_piece = TetrisPiece::new(PieceType::rand());
             let mut last_time = get_time();
             loop {
                 // input
                 match input::get_last_key_pressed() {
-                    Some(KeyCode::Left) => current_piece.x -= 1.0,
-                    Some(KeyCode::Right) => current_piece.x += 1.0,
-                    Some(KeyCode::Down) => current_piece.y += 1.0,
-                    Some(KeyCode::R) => current_piece.rotate_right(),
+                    Some(KeyCode::Left) => {
+                        current_piece.x -= 1; 
+                        if detect_collision(&current_piece, &tetris_grid) {
+                            current_piece.x += 1;
+                        }
+                    },
+                    Some(KeyCode::Right) => {
+                        current_piece.x += 1; 
+                        if detect_collision(&current_piece, &tetris_grid) {
+                            current_piece.x -= 1;
+                        }
+                    },
+                    Some(KeyCode::R) => {
+                        current_piece.rotate_right();
+                        if detect_collision(&current_piece, &tetris_grid) {
+                            current_piece.y -= 1;
+                            if !(detect_collision(&current_piece, &tetris_grid)) {
+                                current_piece.y += 1;
+                            }
+                            else {current_piece.x = clamp(current_piece.x, 0, 6);}
+                            current_piece.y += 1;
+                        }
+                    },
                     Some(KeyCode::Escape) => break,
                     _ => (),
                 }
                 let delta_time = get_time() - last_time;
                 if delta_time > FALL_SPEED {
                     last_time = get_time();
-                    current_piece.y += 1.0;
+                    current_piece.y += 1;
+                    if detect_collision(&current_piece, &tetris_grid) {
+                        current_piece.y -= 1;
+                        tetris_grid.add_piece(&current_piece);
+                        current_piece = TetrisPiece::new(PieceType::rand());
+                    }
                     if current_piece.y as usize > GAME_HEIGHT {
-                        current_piece = Piece::new(PieceType::rand());
+                        current_piece = TetrisPiece::new(PieceType::rand());
                     }
                 }
                 // render stuff
                 window::clear_background(color::DARKGRAY);
                 current_piece.draw(scale);
-                tetris_grid.draw(scale);      
+                tetris_grid.draw(scale);  
+                shapes::draw_rectangle_lines(X_OFFSET, Y_OFFSET, GAME_WIDTH as f32 *scale, GAME_HEIGHT as f32 *scale, 2.0, color::BLACK);    
                 window::next_frame().await;
                 thread::sleep(Duration::from_millis(15));
             }
@@ -70,14 +95,14 @@ async fn main() {
     }
 }
 
-struct Piece {
+struct TetrisPiece {
     grid:[Option<color::Color>; 9],
     p_type: PieceType,
-    x: f32,
-    y: f32,
+    x: i32,
+    y: i32,
 }
-impl Piece {
-    fn new (piece_type: PieceType) -> Piece {
+impl TetrisPiece {
+    fn new (piece_type: PieceType) -> TetrisPiece {
         let c = piece_type.get_color();
         let grid = match piece_type {
                 PieceType::I => [None, Some(c), None,
@@ -102,10 +127,10 @@ impl Piece {
                                 None, Some(c), None,
                                 None, None, None],
         };
-        Piece {
+        TetrisPiece {
             grid: grid, 
             p_type: piece_type, 
-            x: 2.0, y: 0.0,
+            x: 2, y: 0,
         }
     }
     fn rotate_right(&mut self) {
@@ -134,8 +159,8 @@ impl Piece {
     fn draw(&self, scale: f32) {
         for grid_y in 0..3 {
             for grid_x in 0..3 {
-                if let Some(c) = self.grid[3*grid_y + grid_x] {
-                    draw_block(c, self.x + grid_x as f32, self.y + grid_y as f32, scale)
+                if let Some(c) = self.grid[3*grid_y as usize + grid_x as usize] {
+                    draw_block(c, (self.x + grid_x) as f32, (self.y + grid_y) as f32, scale)
                 }
             }
         }
@@ -223,6 +248,16 @@ impl TetrisGrid {
             None
         }
     }
+    fn add_piece(&mut self, piece: &TetrisPiece) {
+        for py in 0..3 {
+            for px in 0..3 {
+                let (x,y) = ((px + piece.x) as usize, (py + piece.y) as usize);
+                if let Some(c) = piece.grid[py as usize * 3+ px as usize] {
+                    self.grid[y*GAME_WIDTH + x] = Some(c);
+                }
+            }
+        }
+    }
     fn draw(&self, scale: f32) {
         for y in 0..GAME_HEIGHT {
             for x in 0..GAME_WIDTH {
@@ -237,4 +272,16 @@ impl TetrisGrid {
 fn draw_block(block_color: color::Color, x: f32, y: f32, scale: f32) {
     shapes::draw_rectangle(x * scale + X_OFFSET, y * scale + Y_OFFSET, scale, scale, block_color);
     shapes::draw_rectangle_lines(x * scale + X_OFFSET, y * scale + Y_OFFSET, scale, scale, 2.0, color::BLACK);
+}
+
+fn detect_collision(piece: &TetrisPiece, t_grid: &TetrisGrid) -> bool {
+    for py in 0..3 {
+        for px in 0..3 {
+            let (x,y) = (px + piece.x, py + piece.y);
+            if piece.grid[py as usize*3 + px as usize].is_some() && (x < 0 || x > 9 || y > 19 || t_grid.grid[GAME_WIDTH * y as usize + x as usize].is_some()) {
+                return true;
+            }
+        }
+    }
+    false
 }
