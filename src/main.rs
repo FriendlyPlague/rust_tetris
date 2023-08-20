@@ -3,7 +3,7 @@ use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::
 
 const GAME_WIDTH: usize = 10;
 const GAME_HEIGHT: usize = 20;
-const FALL_SPEED: f64 = 0.15; // smaller number faster
+const FALL_SPEED: f64 = 0.2; // smaller number faster
 const FRAME_TIME: f64 = 1.0 / 60.0;
 const X_OFFSET: f32 = 100.0;
 const Y_OFFSET: f32 = 20.0;
@@ -54,15 +54,19 @@ async fn main() {
                             current_piece.x -= 1;
                         }
                     },
+                    Some(KeyCode::Space) => {
+                        drop_piece_down(&mut current_piece, &mut tetris_grid)
+                    }
                     Some(KeyCode::R) => {
                         current_piece.rotate_right();
                         if detect_collision(&current_piece, &tetris_grid) {
+                            // pushes piece up if rotation causes collision on block bellow
                             current_piece.y -= 1;
-                            if !(detect_collision(&current_piece, &tetris_grid)) {
+                            if detect_collision(&current_piece, &tetris_grid) {
+                                // since collisions is caused by going out of bounds pop it back in bounds
                                 current_piece.y += 1;
+                                current_piece.x = clamp(current_piece.x, 0, 6);
                             }
-                            else {current_piece.x = clamp(current_piece.x, 0, 6);}
-                            current_piece.y += 1;
                         }
                     },
                     Some(KeyCode::Escape) => break,
@@ -77,9 +81,7 @@ async fn main() {
                         tetris_grid.add_piece(&current_piece);
                         current_piece = TetrisPiece::new(PieceType::rand());
                     }
-                    if current_piece.y as usize > GAME_HEIGHT {
-                        current_piece = TetrisPiece::new(PieceType::rand());
-                    }
+                    tetris_grid.delete_rows();
                 }
                 // render stuff
                 window::clear_background(color::DARKGRAY);
@@ -223,7 +225,7 @@ impl TetrisGrid {
             to_be_deleted = self.check_lines();
         }
     }
-
+    
     fn check_lines(&self) -> Option<(usize, usize)> {
         /* if there is a row to be deleted, it returns  the amount
         of rows detected and the starting row location*/
@@ -231,7 +233,7 @@ impl TetrisGrid {
         for y in 0..GAME_HEIGHT {
             let mut full_row = true;
             for x in 0..GAME_WIDTH {
-                if self.grid[x * y].is_none() {
+                if self.grid[GAME_WIDTH * y + x].is_none() {
                     full_row = false;
                     break;
                 }
@@ -284,4 +286,11 @@ fn detect_collision(piece: &TetrisPiece, t_grid: &TetrisGrid) -> bool {
         }
     }
     false
+}
+fn drop_piece_down(piece: &mut TetrisPiece, t_grid: &mut TetrisGrid) {
+    while !detect_collision(piece, t_grid) {
+        piece.y += 1;
+    }
+    piece.y -= 1;
+    t_grid.add_piece(piece);
 }
