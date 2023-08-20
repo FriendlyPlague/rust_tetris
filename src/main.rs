@@ -1,6 +1,8 @@
 use std::{thread,time::Duration};
 use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::{KeyCode, clamp}, miniquad::date};
 
+// TODO! improve movement
+
 const GAME_WIDTH: usize = 10;
 const GAME_HEIGHT: usize = 20;
 const FALL_SPEED: f64 = 0.2; // smaller number faster
@@ -55,19 +57,19 @@ async fn main() {
                         }
                     },
                     Some(KeyCode::Space) => {
-                        drop_piece_down(&mut current_piece, &mut tetris_grid)
+                        current_piece.drop_down(&tetris_grid);
                     }
                     Some(KeyCode::R) => {
-                        current_piece.rotate_right();
-                        if detect_collision(&current_piece, &tetris_grid) {
-                            // pushes piece up if rotation causes collision on block bellow
-                            current_piece.y -= 1;
-                            if detect_collision(&current_piece, &tetris_grid) {
-                                // since collisions is caused by going out of bounds pop it back in bounds
-                                current_piece.y += 1;
-                                current_piece.x = clamp(current_piece.x, 0, 6);
+                        // purpose of clone is to prevent roatation into other pieces
+                        let mut piece_clone = current_piece.clone();
+                        piece_clone.rotate_right();
+                        if detect_collision(&piece_clone, &tetris_grid) {
+                            piece_clone.x = clamp(piece_clone.x, 0, 6);
+                            if !detect_collision(&piece_clone, &tetris_grid) {
+                                current_piece = piece_clone;
                             }
                         }
+                        else {current_piece.rotate_right();}
                     },
                     Some(KeyCode::Escape) => break,
                     _ => (),
@@ -97,6 +99,7 @@ async fn main() {
     }
 }
 
+#[derive(Clone)]
 struct TetrisPiece {
     grid:[Option<color::Color>; 9],
     p_type: PieceType,
@@ -158,6 +161,12 @@ impl TetrisPiece {
         }
         self.grid = new_area;
     }
+    fn drop_down(&mut self, t_grid: &TetrisGrid) {
+        while !detect_collision(&self, t_grid) {
+            self.y += 1;
+        }
+        self.y -= 1;
+    }
     fn draw(&self, scale: f32) {
         for grid_y in 0..3 {
             for grid_x in 0..3 {
@@ -168,7 +177,7 @@ impl TetrisPiece {
         }
     }
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum PieceType {
     O,
     I,
@@ -286,11 +295,4 @@ fn detect_collision(piece: &TetrisPiece, t_grid: &TetrisGrid) -> bool {
         }
     }
     false
-}
-fn drop_piece_down(piece: &mut TetrisPiece, t_grid: &mut TetrisGrid) {
-    while !detect_collision(piece, t_grid) {
-        piece.y += 1;
-    }
-    piece.y -= 1;
-    t_grid.add_piece(piece);
 }
