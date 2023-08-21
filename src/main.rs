@@ -1,4 +1,3 @@
-use core::num;
 use std::{thread,time::Duration};
 use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::{KeyCode, clamp}, miniquad::date};
 
@@ -8,7 +7,6 @@ const GAME_WIDTH: usize = 10;
 const GAME_HEIGHT: usize = 20;
 const FALL_SPEED: f64 = 0.18; // smaller number faster
 const MOVE_SPEED: f64 = 0.06;
-const FRAME_TIME: f64 = 1.0 / 60.0;
 const X_OFFSET: f32 = 100.0;
 const TOP_MARGIN: f32 = 80.0;
 const BOTTOM_MARGIN: f32 = 20.0;
@@ -16,14 +14,13 @@ const BOTTOM_MARGIN: f32 = 20.0;
 fn window_conf() -> window::Conf {
     window::Conf {
         window_title: "Tetris".to_owned(),
-        window_width: 700,
+        window_width: 650,
         window_height: 1000,
         window_resizable: false,
         ..Default::default()
     }
 }
 enum MainState {
-    StartMenu,
     TetrisLoop,
     GameOver,
     ExitGame,
@@ -41,8 +38,8 @@ async fn main() {
     rand::srand(date::now() as u64);
     loop {
         match main_state {
-            MainState::StartMenu => (),
             MainState::TetrisLoop => {
+                score = 0;
                 let mut current_piece = TetrisPiece::new(PieceType::rand());
                 let mut last_time = get_time();
                 let mut last_input_time = get_time();
@@ -58,7 +55,7 @@ async fn main() {
                             let mut piece_clone = current_piece.clone();
                             piece_clone.rotate_right();
                             if detect_collision(&piece_clone, &tetris_grid) {
-                                piece_clone.x = clamp(piece_clone.x, 0, 6);
+                                piece_clone.x = clamp(piece_clone.x, 0, (GAME_WIDTH-4) as i32);
                                 if !detect_collision(&piece_clone, &tetris_grid) {
                                     current_piece = piece_clone;
                                 }
@@ -104,7 +101,7 @@ async fn main() {
                         if detect_collision(&current_piece, &tetris_grid) {
                             current_piece.y -= 1;
                             if detect_fail(&current_piece) {
-                                main_state = MainState::ExitGame;
+                                main_state = MainState::GameOver;
                                 break;
                             }
                             else {
@@ -119,7 +116,7 @@ async fn main() {
                     // render stuff
                     window::clear_background(color::DARKGRAY);
                     let score: String = score.to_string();
-                    text::draw_text(&score, window::screen_width()/2.0 - (score.len()*50) as f32, TOP_MARGIN, 100.0, color::BLACK);
+                    text::draw_text(&score, window::screen_width()/2.0 - (score.len()*20) as f32, TOP_MARGIN, 100.0, color::BLACK);
                     current_piece.draw(scale);
                     tetris_grid.draw(scale);  
                     shapes::draw_rectangle_lines(X_OFFSET, TOP_MARGIN, GAME_WIDTH as f32 *scale, GAME_HEIGHT as f32 *scale, 2.0, color::BLACK);    
@@ -127,7 +124,23 @@ async fn main() {
                     thread::sleep(Duration::from_millis(15));
                 }
             },
-            MainState::GameOver => (),
+            MainState::GameOver => {
+                loop {
+                    //Proccess input
+                    match input::get_last_key_pressed() {
+                        Some(input::KeyCode::Escape) => {main_state = MainState::ExitGame; break;},
+                        Some(input::KeyCode::R) => {main_state = MainState::TetrisLoop; break;},
+                        _ => (),
+                    };
+                    window::clear_background(color::DARKGRAY);
+                    text::draw_text("GAME OVER!", window::screen_width()/5.0, 250.0, 100.0, color::RED);
+                    text::draw_text(&format!("Score: {}",score), X_OFFSET, 350.0, 70.0, color::BLACK);
+                    text::draw_text("Press R to restart", X_OFFSET, 500.0, 60.0, color::BLACK);
+                    text::draw_text("Press Esc to close", X_OFFSET+50.0, 600.0, 40.0, color::BLACK);
+                    window::next_frame().await;
+                    thread::sleep(Duration::from_millis(15));
+                }
+            },
             MainState::ExitGame => break,
         }
     }
@@ -338,7 +351,7 @@ fn detect_collision(piece: &TetrisPiece, t_grid: &TetrisGrid) -> bool {
         for px in 0..3 {
             let (x,y) = (px + piece.x, py + piece.y);
             if y < 0 {continue;}
-            if piece.grid[py as usize*3 + px as usize].is_some() && (x < 0 || x > 9 || y > 19 || t_grid.grid[GAME_WIDTH * y as usize + x as usize].is_some()) {
+            if piece.grid[py as usize*3 + px as usize].is_some() && (x < 0 || x >= GAME_WIDTH as i32|| y >= GAME_HEIGHT as i32|| t_grid.grid[GAME_WIDTH * y as usize + x as usize].is_some()) {
                 return true;
             }
         }
@@ -349,7 +362,7 @@ fn detect_collision(piece: &TetrisPiece, t_grid: &TetrisGrid) -> bool {
 fn detect_fail(piece: &TetrisPiece) -> bool {
     for py in 0..3 {
         for px in 0..3 {
-            let (x,y) = (px + piece.x, py + piece.y);
+            let (_x,y) = (px + piece.x, py + piece.y);
             if piece.grid[py as usize*3 + px as usize].is_some() && y < 0  {
                 return true;
             }
