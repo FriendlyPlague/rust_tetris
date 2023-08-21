@@ -148,7 +148,7 @@ async fn main() {
 
 #[derive(Clone)]
 struct TetrisPiece {
-    grid:[Option<color::Color>; 9],
+    grid: Vec<Option<color::Color>>,
     p_type: PieceType,
     x: i32,
     y: i32,
@@ -157,27 +157,28 @@ impl TetrisPiece {
     fn new (piece_type: PieceType) -> TetrisPiece {
         let c = piece_type.get_color();
         let grid = match piece_type {
-                PieceType::I => [None, Some(c), None,
-                                None, Some(c), None,
-                                None, Some(c), None],
-                PieceType::O => [Some(c),Some(c),None,
-                                Some(c),Some(c),None,
-                                None, None, None],
-                PieceType::S => [None,  Some(c),Some(c),
-                                Some(c), Some(c), None,
-                                None,None,None],
-                PieceType::Z => [Some(c),Some(c), None,
-                                None, Some(c), Some(c),
-                                None, None, None],
-                PieceType::L => [Some(c),None,None,
-                                Some(c), None, None,
-                                Some(c),Some(c),None],
-                PieceType::J => [None, None,Some(c),
-                                None, None, Some(c),
-                                None,Some(c),Some(c)],
-                PieceType::T => [Some(c),Some(c),Some(c),
-                                None, Some(c), None,
-                                None, None, None],
+                PieceType::I => vec![None, None, Some(c), None,
+                                    None, None, Some(c), None,
+                                    None, None, Some(c), None,
+                                    None, None, Some(c), None,],
+                PieceType::O => vec![Some(c),Some(c),None,
+                                    Some(c),Some(c),None,
+                                    None, None, None],
+                PieceType::S => vec![None,  Some(c),Some(c),
+                                    Some(c), Some(c), None,
+                                    None,None,None],
+                PieceType::Z => vec![Some(c),Some(c), None,
+                                    None, Some(c), Some(c),
+                                    None, None, None],
+                PieceType::L => vec![Some(c),None,None,
+                                    Some(c), None, None,
+                                    Some(c),Some(c),None],
+                PieceType::J => vec![None, None,Some(c),
+                                    None, None, Some(c),
+                                    None,Some(c),Some(c)],
+                PieceType::T => vec![Some(c),Some(c),Some(c),
+                                    None, Some(c), None,
+                                    None, None, None],
         };
         TetrisPiece {
             grid: grid, 
@@ -186,8 +187,25 @@ impl TetrisPiece {
         }
     }
     fn rotate_right(&mut self) {
-        if let PieceType::O = self.p_type {
-            return;
+        match self.p_type {
+            PieceType::O => return,
+            PieceType::I => {
+                let c = self.p_type.get_color();
+                if self.grid[2].is_some() {
+                    self.grid = vec![None, None, None, None,
+                                    None, None, None, None,
+                                    Some(c), Some(c), Some(c), Some(c),
+                                    None, None, None, None];
+                }
+                else {
+                    self.grid = vec![None, None, Some(c), None,
+                                    None, None, Some(c), None,
+                                    None, None, Some(c), None,
+                                    None, None, Some(c), None,];
+                }
+                return;
+            }
+            _ => ()
         }
         let mut new_area: [Option<color::Color>; 9] = [None; 9]; //think array of 3 by 3 quandrant 4
         for x in 0..3 {
@@ -203,10 +221,10 @@ impl TetrisPiece {
             new_area[2 - y] = self.grid[y * 3]; // sets top 3 right 3
         }
         new_area[4] = self.grid[4]; // sets middle to middle
-        if self.p_type != PieceType::I && new_area[0..3] == [None, None, None] {
+        if  new_area[0..3] == [None, None, None] {
             new_area.rotate_left(3);
         }
-        self.grid = new_area;
+        self.grid = Vec::from(new_area);
     }
     fn drop_down(&mut self, t_grid: &TetrisGrid) {
         while !detect_collision(&self, t_grid) {
@@ -215,13 +233,19 @@ impl TetrisPiece {
         self.y -= 1;
     }
     fn draw(&self, scale: f32) {
-        for py in 0..3 {
-            for px in 0..3 {
+        let grid_d = {
+            if self.p_type == PieceType::I {
+                4
+            }
+            else {3}
+        };
+        for py in 0..grid_d {
+            for px in 0..grid_d {
                 let (x,y) = (px + self.x, py + self.y);
                 if y < 0 {
                     continue;
                 }
-                if let Some(c) = self.grid[(3*py + px) as usize] {
+                if let Some(c) = self.grid[(grid_d*py + px) as usize] {
                     draw_block(c, x as f32, y as f32, scale);
                 }
             }
@@ -320,10 +344,16 @@ impl TetrisGrid {
         }
     }
     fn add_piece(&mut self, piece: &TetrisPiece) {
-        for py in 0..3 {
-            for px in 0..3 {
+        let grid_d = {
+            if piece.p_type == PieceType::I {
+                4
+            }
+            else {3}
+        };
+        for py in 0..grid_d {
+            for px in 0..grid_d {
                 let (x,y) = ((px + piece.x) as usize, (py + piece.y) as usize);
-                if let Some(c) = piece.grid[py as usize * 3+ px as usize] {
+                if let Some(c) = piece.grid[(py * grid_d) as usize + px as usize] {
                     self.grid[y*GAME_WIDTH + x] = Some(c);
                 }
             }
@@ -346,12 +376,17 @@ fn draw_block(block_color: color::Color, x: f32, y: f32, scale: f32) {
 }
 
 fn detect_collision(piece: &TetrisPiece, t_grid: &TetrisGrid) -> bool {
-    // NOTE: for loops are often repeated, could turn into higher order function
-    for py in 0..3 {
-        for px in 0..3 {
+    let grid_d = {
+        if piece.p_type == PieceType::I {
+            4
+        }
+        else {3}
+    };
+    for py in 0..grid_d {
+        for px in 0..grid_d {
             let (x,y) = (px + piece.x, py + piece.y);
             if y < 0 {continue;}
-            if piece.grid[py as usize*3 + px as usize].is_some() && (x < 0 || x >= GAME_WIDTH as i32|| y >= GAME_HEIGHT as i32|| t_grid.grid[GAME_WIDTH * y as usize + x as usize].is_some()) {
+            if piece.grid[(py*grid_d + px) as usize].is_some() && (x < 0 || x >= GAME_WIDTH as i32|| y >= GAME_HEIGHT as i32|| t_grid.grid[GAME_WIDTH * y as usize + x as usize].is_some()) {
                 return true;
             }
         }
@@ -360,10 +395,16 @@ fn detect_collision(piece: &TetrisPiece, t_grid: &TetrisGrid) -> bool {
 }
 
 fn detect_fail(piece: &TetrisPiece) -> bool {
-    for py in 0..3 {
-        for px in 0..3 {
+    let grid_d = {
+        if piece.p_type == PieceType::I {
+            4
+        }
+        else {3}
+    };
+    for py in 0..grid_d {
+        for px in 0..grid_d {
             let (_x,y) = (px + piece.x, py + piece.y);
-            if piece.grid[py as usize*3 + px as usize].is_some() && y < 0  {
+            if piece.grid[(py*grid_d + px) as usize].is_some() && y < 0  {
                 return true;
             }
         }
