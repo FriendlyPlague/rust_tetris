@@ -1,8 +1,6 @@
 use std::{thread,time::Duration};
 use macroquad::{window,shapes,color, input, time::get_time, text,rand, prelude::{KeyCode, clamp}, miniquad::date};
 
-// TODO! improve movement
-
 const GAME_WIDTH: usize = 10;
 const GAME_HEIGHT: usize = 20;
 const FALL_SPEED: f64 = 0.18; // smaller number faster
@@ -25,12 +23,13 @@ enum MainState {
     GameOver,
     ExitGame,
 }
+
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut main_state = MainState::TetrisLoop;
     let scale: f32 = {
-        let x_scale: f32 = window::screen_width()/GAME_WIDTH as f32 - X_OFFSET*2.0/GAME_WIDTH as f32;
-        let y_scale: f32 = window::screen_height()/GAME_HEIGHT as f32 - (TOP_MARGIN+BOTTOM_MARGIN)/GAME_HEIGHT as f32;
+        let x_scale = window::screen_width()/GAME_WIDTH as f32 - X_OFFSET*2.0/GAME_WIDTH as f32;
+        let y_scale = window::screen_height()/GAME_HEIGHT as f32 - (TOP_MARGIN+BOTTOM_MARGIN)/GAME_HEIGHT as f32;
         if x_scale < y_scale {x_scale}
         else {y_scale}
     };
@@ -181,7 +180,7 @@ impl TetrisPiece {
                                     None, None, None],
         };
         TetrisPiece {
-            grid: grid, 
+            grid, 
             p_type: piece_type, 
             x: 3, y: -2,
         }
@@ -227,7 +226,7 @@ impl TetrisPiece {
         self.grid = Vec::from(new_area);
     }
     fn drop_down(&mut self, t_grid: &TetrisGrid) {
-        while !detect_collision(&self, t_grid) {
+        while !detect_collision(self, t_grid) {
             self.y += 1;
         }
         self.y -= 1;
