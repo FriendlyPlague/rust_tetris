@@ -1,3 +1,3 @@
 # rust_tetris
-A tetris prototype written in rust
+A working tetris clone written in rust
 ![](https://github.com/ZacharyGillmore/rust_tetris/blob/master/tetris.gif)
