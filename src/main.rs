@@ -33,7 +33,7 @@ async fn main() {
         if x_scale < y_scale {x_scale}
         else {y_scale}
     };
-    let mut score: i32 = 0;
+    let mut score: u32 = 0;
     rand::srand(date::now() as u64);
     loop {
         match main_state {
@@ -293,7 +293,7 @@ struct TetrisGrid {
 }
 
 impl TetrisGrid {
-    fn delete_rows(&mut self) -> Option<i32> {
+    fn delete_rows(&mut self) -> Option<u32> {
         let mut to_be_deleted = self.check_lines();
         let mut out_score = None;
         match to_be_deleted {
@@ -384,8 +384,9 @@ fn detect_collision(piece: &TetrisPiece, t_grid: &TetrisGrid) -> bool {
     for py in 0..grid_d {
         for px in 0..grid_d {
             let (x,y) = (px + piece.x, py + piece.y);
-            if y < 0 {continue;}
-            if piece.grid[(py*grid_d + px) as usize].is_some() && (x < 0 || x >= GAME_WIDTH as i32|| y >= GAME_HEIGHT as i32|| t_grid.grid[GAME_WIDTH * y as usize + x as usize].is_some()) {
+            if piece.grid[(py*grid_d + px) as usize].is_some() && (
+              x < 0 || x >= GAME_WIDTH as i32|| y >= GAME_HEIGHT as i32 || 
+              (y >= 0 && t_grid.grid[GAME_WIDTH * y as usize + x as usize].is_some())) {
                 return true;
             }
         }
